@@ -44,20 +44,23 @@ class Agent(object):
         self.vy = velocity[1]
 
     def get_position(self):
-        return (self.px, self.py)
+        return self.px, self.py
 
     def get_goal_position(self):
-        return (self.gx, self.gy)
+        return self.gx, self.gy
 
 
 class Human(Agent):
     def __init__(self, time_step):
+        super().__init__()
         self.visible = True
         self.radius = 0.3
         self.time_step = time_step
+        self.v_pref = 1
 
 class Robot(Agent):
     def __init__(self, time_step):
+        super().__init__()
         self.visible = False
         self.radius = 0.3
         self.time_step = time_step

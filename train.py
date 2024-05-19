@@ -5,7 +5,6 @@ import torch
 from torch import nn
 import os
 from env import CrowdEnv
-import params
 from matplotlib import pyplot as plt
 
 class Network(nn.Module):
@@ -66,13 +65,14 @@ class DQN:
         if np.random.rand() < epsilon:
             action = random.randrange(self.num_actions)
         else:
-            q_value = self.model(torch.from_numpy(state))
+            q_value = self.model(state)
             action = np.argmax(q_value.detach().numpy())
 
         return action
 
 
     def add_to_replay_buffer(self, state, action, reward, next_state, terminal):
+        print(state.shape, action, reward, next_state.shape, terminal)
         self.replay_buffer.append((state, action, reward, next_state, terminal))
 
     def sample_from_reply_buffer(self):
@@ -116,7 +116,7 @@ class DQN:
         losses = []
         rewards_list = []
         for episode in range(num_episodes):
-            obs = env.reset()
+            obs = env.reset(human_num=5, test_phase=False, counter=None)
             state = env.convert_coord(obs)
             reward_for_episode = 0
             num_step_per_eps = 0
@@ -170,7 +170,7 @@ if __name__ == "__main__":
     eps_decay = 30000
     eps_start = 1
     eps_end = 0.01
-    initial_memory = 10000
+    initial_memory = 1000#10000
     memory_size = 20 * initial_memory
     gamma = 0.99
     num_episodes = 10000

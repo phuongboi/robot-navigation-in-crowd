@@ -1,4 +1,6 @@
 import rvo2
+import torch
+import itertools
 import numpy as np
 from numpy.linalg import norm
 from agent import Human, Robot
@@ -29,13 +31,13 @@ class CrowdEnv(object):
     def generate_human_postion(self, human_num, rule):
         if  rule == "square":
             self.human_list = self.square_rule(human_num)
-        elif rule == "cross":
-            self.humans_list = self.cross_rule(human_num)
+        elif rule == "circle":
+            self.humans_list = self.circle_rule(human_num)
 
     def circle_rule(self, human_num):
         while True:
-            human = Human(self.v_pref, self.radius, self.time_step)
-            angle = np.random.randm() * np.pi *2
+            human = Human(self.time_step)
+            angle = np.random.random() * np.pi *2
             px_noise = (np.random.random() - 0.5) * human.v_pref
             py_noise = (np.random.random() - 0.5) * human.v_pref
             px = self.circle_radius * np.cos(angle) + px_noise
@@ -44,8 +46,8 @@ class CrowdEnv(object):
             collide = False
             for agent in [self.robot] + self.human_list:
                 min_dist = human.radius + agent.radius + self.discomfort_dist
-                if norm(px - agent.px, py - agent.py) < min_dist or \
-                    norm(px - agent.gx, py - agent.gy) < min_dist:
+                if norm((px - agent.px, py - agent.py)) < min_dist or \
+                    norm((px - agent.gx, py - agent.gy)) < min_dist:
                     collide = True
                     break
             if not collide:
@@ -56,14 +58,14 @@ class CrowdEnv(object):
                 break
     def square_rule(self, human_hum):
         while True:
-            human = Human(self.v_pref, self.radius, self.time_step)
+            human = Human(self.time_step)
             px = (np.random.random() - 0.5) * self.square_width
             py = (np.random.random() - 0.5) * self.square_width
             collide = False
             for agent in [self.robot] + self.human_list:
                 min_dist = human.radius + agent.radius + self.discomfort_dist
-                if norm(px - agent.px, py - agent.py) < min_dist or \
-                    norm(px - agent.gx, py - agent.gy) < min_dist:
+                if norm((px - agent.px, py - agent.py)) < min_dist or \
+                    norm((px - agent.gx, py - agent.gy)) < min_dist:
                     collide = True
                     break
             if not collide:
@@ -75,7 +77,6 @@ class CrowdEnv(object):
 
     def action_space(self):
         speeds = [(np.exp((i + 1) / self.speed_samples) - 1) / (np.e - 1) * self.max_speed for i in range(self.speed_samples)]
-        print("sample speed",speeds)
         rotations = np.linspace(0, 2 * np.pi, self.rotation_samples, endpoint=False)
         action_space = []
         for rotation, speed in itertools.product(rotations, speeds):
@@ -83,12 +84,13 @@ class CrowdEnv(object):
 
         return action_space
 
-    def reset(self, human_num, test_phase=False, counter):
+    def reset(self, human_num, test_phase=False, counter=None):
         self.robot = Robot(self.time_step)
+        self.human_list = []
         if test_phase:
             np.random.sead(counter)
-        self.generate_human_postion(human_num)
-        obs = [self.robot.full_state] + [human.observable_state() for human in self.human_list]
+        self.generate_human_postion(human_num=human_num, rule="circle")
+        obs = [self.robot.full_state()] + [human.observable_state() for human in self.human_list]
         assert len(obs) == 6 #debug
         # orca simultion
         params = self.neighbor_dist, self.max_neighbors, self.time_horizon, self.time_horizon_obst
@@ -115,9 +117,9 @@ class CrowdEnv(object):
         # compute reward
         distance_list = []
         for human in self.human_list:
-            distance_list.append(norm(human.get_position - self.robot.get_position) - 2 * self.radius)
-        dmin = min(distance_list)
-        reaching_goal = norm(self.robot.get_position - self.robot.get_goal_position) < self.robot.radius
+            distance_list.append(norm(np.array(human.get_position()) - np.array(self.robot.get_position())) - 2 * self.radius)
+        d_min = min(distance_list)
+        reaching_goal = norm(np.array(self.robot.get_position()) - np.array(self.robot.get_goal_position())) < self.robot.radius
 
         if self.sim_time >= self.time_out_duration:
             reward = 0
@@ -128,62 +130,45 @@ class CrowdEnv(object):
             done = True
             info = "collide"
         elif d_min < self.discomfort_dist:
-            reward = -0.1 + 0.05*d_min
+            reward = round(-0.1 + 0.05*d_min, 4)
             done = False
             info = "close"
         elif reaching_goal:
             reward = 1
             done = True
-            info = "goal"
+            info = "Goal, time {}".format(self.sim_time)
         else:
             reward = 0
-            done False
-            info = "onway"
+            done = False
+            info = "Onway"
 
-        obs = [self.robot.full_state] + [human.observable_state() for human in self.human_list]
+        obs = [self.robot.full_state()] + [human.observable_state() for human in self.human_list]
 
         return obs, reward, done, info
     def convert_coord(self, obs):
         assert len(obs) == 6
         robot_state = torch.Tensor(obs[0])
         human_state = torch.Tensor(np.array(obs[1:]))
-        assert human_state.shape[0] = 5
-        assert human_state.shape[1] = 5
+        assert human_state.shape[0] == 5
+        assert human_state.shape[1] == 5
         dx = robot_state[5] - robot_state[0]
         dy = robot_state[6] - robot_state[1]
-        dg = torch.norm(dx, dy).expand(5,1)
-        rot = torch.atan2(dy, dx).expand(5,1)
+        dg = torch.from_numpy(np.array(norm((dx, dy)))).expand(5,1)
+        rot = torch.atan2(dy, dx)
+        rot_expand = rot.expand(5,1)
         v_pref  = robot_state[7].expand(5,1)
         vx = (robot_state[2] * torch.cos(rot) + robot_state[3] * torch.sin(rot)).expand(5,1)
         vy = (robot_state[3] * torch.cos(rot) - robot_state[2] * torch.sin(rot)).expand(5,1)
         radius = robot_state[4].expand(5,1)
         #theta = torch.zeros_like(v_pref)
-        vx_human = (human_state[:, 2] * torch.cos(rot) + human_state[:, 3] * torch.sin(rot))
-        vy_human = (human_state[:, 3] * torch.cos(rot) - human_state[:, 2] * torch.sin(rot))
-        px_human = (human_state[:, 0] - robot_state[0]) * torch.cos(rot) + (human_state[:, 1] - robot_state[1]) * torch.sin(rot)
-        py_human = (human_state[:, 1] - robot_state[1]) * torch.cos(rot) - (human_state[:, 0] - robot_state[0]) * torch.sin(rot)
-        radius_human = human_state[:, 5]
+        vx_human = (human_state[:, 2] * torch.cos(rot) + human_state[:, 3] * torch.sin(rot)).unsqueeze(1)
+        vy_human = (human_state[:, 3] * torch.cos(rot) - human_state[:, 2] * torch.sin(rot)).unsqueeze(1)
+        px_human = ((human_state[:, 0] - robot_state[0]) * torch.cos(rot) + (human_state[:, 1] - robot_state[1]) * torch.sin(rot)).unsqueeze(1)
+        py_human = ((human_state[:, 1] - robot_state[1]) * torch.cos(rot) - (human_state[:, 0] - robot_state[0]) * torch.sin(rot)).unsqueeze(1)
+        radius_human = human_state[:, 4].unsqueeze(1)
         radius_sum = radius + radius_human
-        da = torch.norm(human_state[:, 0] - robot_state[0], human_state[:, 1] - robot_state[1])
-
-        new_state = torch.cat(dg, rot, vx, vy, v_pref, radius, px_human, py_human, vx_human, vy_human, radius_sum, da, radius_sum, dim=1)
-        assert new_human_state.shape[0] == 5
-        assert new_human_state.shape[1] == 13
-        return new_state
-
-
-
-
-
-
-
-
-        for i in range(len(obs)):
-
-    s, vx, vy, px1, py1, vx1, vy1, radius1, da, radius_sum], dim=1)
-
-        return state
-
-
+        da = torch.from_numpy(np.array(norm((human_state[:, 0] - robot_state[0], human_state[:, 1] - robot_state[1])))).unsqueeze(1)
+        new_state = (torch.cat([dg, rot_expand, vx, vy, v_pref, radius, px_human, py_human, vx_human, vy_human, radius_human, da, radius_sum], dim=1)).unsqueeze(0)
+        return new_state# add batch dim
     def render(self, obs):
         print("show result", len(obs))
