@@ -98,6 +98,7 @@ class CrowdEnv(object):
             self.sim.addAgent((human.px, human.py), *params, human.radius + 0.01 + self.safety_space,
                               human.v_pref, (human.vx, human.py))
         self.sim_time = 0
+        self.dg = norm(np.array(self.robot.get_position()) - np.array(self.robot.get_goal_position()))
         return obs
 
     def step(self, action):
@@ -119,14 +120,18 @@ class CrowdEnv(object):
         for human in self.human_list:
             distance_list.append(norm(np.array(human.get_position()) - np.array(self.robot.get_position())) - 2 * self.radius)
         d_min = min(distance_list)
-        reaching_goal = norm(np.array(self.robot.get_position()) - np.array(self.robot.get_goal_position())) < self.robot.radius
+        current_dg = norm(np.array(self.robot.get_position()) - np.array(self.robot.get_goal_position()))
+        reaching_goal = current_dg < self.robot.radius
+
+        delta_d = self.dg - current_dg
+        self.dg = current_dg
 
         if self.sim_time >= self.time_out_duration:
             reward = 0
             done = True
             info = "timeout"
         elif d_min < 0:
-            reward = -0.25
+            reward = -5
             done = True
             info = "collide"
         elif d_min < self.discomfort_dist:
@@ -134,11 +139,11 @@ class CrowdEnv(object):
             done = False
             info = "close"
         elif reaching_goal:
-            reward = 1
+            reward = 10
             done = True
             info = "Goal, time {}".format(self.sim_time)
         else:
-            reward = 0
+            reward = delta_d 
             done = False
             info = "Onway"
 

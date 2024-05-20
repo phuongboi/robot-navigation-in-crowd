@@ -6,6 +6,7 @@ from torch import nn
 import os
 from env import CrowdEnv
 from matplotlib import pyplot as plt
+from IPython.display import clear_output
 
 class Network(nn.Module):
     def __init__(self,robot_dim, human_dim, lstm_hidden_dim, num_actions):
@@ -72,7 +73,6 @@ class DQN:
 
 
     def add_to_replay_buffer(self, state, action, reward, next_state, terminal):
-        print(state.shape, action, reward, next_state.shape, terminal)
         self.replay_buffer.append((state, action, reward, next_state, terminal))
 
     def sample_from_reply_buffer(self):
@@ -80,12 +80,13 @@ class DQN:
         return random_sample
 
     def get_memory(self, random_sample):
-        states = np.array([i[0] for i in random_sample])
-        actions = np.array([i[1] for i in random_sample])
-        rewards = np.array([i[2] for i in random_sample])
-        next_states = np.array([i[3] for i in random_sample])
-        terminals = np.array([i[4] for i in random_sample])
-        return torch.from_numpy(states), torch.from_numpy(actions), rewards, torch.from_numpy(next_states), terminals
+        states = torch.cat([i[0] for i in random_sample], dim=0)
+        actions = torch.tensor([i[1] for i in random_sample])
+        rewards = torch.tensor([i[2] for i in random_sample])
+        next_states = torch.cat([i[3] for i in random_sample], dim=0)
+        terminals = torch.tensor([i[4] for i in random_sample]) * 1
+
+        return states, actions, rewards, next_states, terminals
 
     def train_with_relay_buffer(self):
         # replay_memory_buffer size check
@@ -98,10 +99,10 @@ class DQN:
 
         next_q_vec = np.max(next_q_mat.detach().numpy(), axis=1).squeeze()
 
-        target_vec = rewards + self.gamma * next_q_vec* (1 - terminals)
+        target_vec = rewards + self.gamma * next_q_vec * (1 - terminals.detach().numpy())
         q_mat = self.model(states)
         q_vec = q_mat.gather(dim=1, index=actions.unsqueeze(1)).type(torch.FloatTensor)
-        target_vec = torch.from_numpy(target_vec).unsqueeze(1).type(torch.FloatTensor)
+        target_vec = target_vec.unsqueeze(1).type(torch.FloatTensor)
         loss = self.loss_func(q_vec, target_vec)
         self.optimizer.zero_grad()
         loss.backward()
@@ -167,10 +168,10 @@ if __name__ == "__main__":
     # setting up params
     lr = 0.001
     batch_size = 128
-    eps_decay = 30000
+    eps_decay = 300000
     eps_start = 1
     eps_end = 0.01
-    initial_memory = 1000#10000
+    initial_memory = 10000
     memory_size = 20 * initial_memory
     gamma = 0.99
     num_episodes = 10000
