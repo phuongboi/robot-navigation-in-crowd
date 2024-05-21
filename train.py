@@ -166,9 +166,9 @@ if __name__ == "__main__":
     env = CrowdEnv()
 
     # setting up params
-    lr = 0.001
+    lr = 0.00001
     batch_size = 128
-    eps_decay = 300000
+    eps_decay = 50000
     eps_start = 1
     eps_end = 0.01
     initial_memory = 10000
