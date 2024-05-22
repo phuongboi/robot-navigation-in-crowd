@@ -27,6 +27,7 @@ class CrowdEnv(object):
         params = self.neighbor_dist, self.max_neighbors, self.time_horizon, self.time_horizon_obst
         self.sim = rvo2.PyRVOSimulator(self.time_step, *params, self.radius, self.max_speed)
         self.vel_samples = self.action_space()
+        self.obs = [] # for render
 
     def generate_human_postion(self, human_num, rule):
         if  rule == "square":
@@ -99,6 +100,7 @@ class CrowdEnv(object):
                               human.v_pref, (human.vx, human.py))
         self.sim_time = 0
         self.dg = norm(np.array(self.robot.get_position()) - np.array(self.robot.get_goal_position()))
+        self.obs = obs
         return obs
 
     def step(self, action):
@@ -143,12 +145,12 @@ class CrowdEnv(object):
             done = True
             info = "Goal, time {}".format(self.sim_time)
         else:
-            reward = delta_d 
+            reward = delta_d
             done = False
             info = "Onway"
 
         obs = [self.robot.full_state()] + [human.observable_state() for human in self.human_list]
-
+        self.obs = obs
         return obs, reward, done, info
     def convert_coord(self, obs):
         assert len(obs) == 6
@@ -175,5 +177,7 @@ class CrowdEnv(object):
         da = torch.from_numpy(np.array(norm((human_state[:, 0] - robot_state[0], human_state[:, 1] - robot_state[1])))).unsqueeze(1)
         new_state = (torch.cat([dg, rot_expand, vx, vy, v_pref, radius, px_human, py_human, vx_human, vy_human, radius_human, da, radius_sum], dim=1)).unsqueeze(0)
         return new_state# add batch dim
-    def render(self, obs):
-        print("show result", len(obs))
+    def render(self):
+        print("show result", len(self.obs))
+        robot_state = obs[0]
+        human_states = obs[1:]
