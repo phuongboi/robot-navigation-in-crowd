@@ -42,21 +42,23 @@ class DQN:
 
         self.env = env
         self.model_path = model_path
-
         self.num_actions = 80
         self.robot_dim = 6
         self.human_dim = 7
         self.lstm_hidden_dim = 48
         self.model = self.make_model()
+        self.model.load_state_dict(torch.load(self.model_path))
 
     def make_model(self):
         model = Network(self.robot_dim, self.human_dim, self.lstm_hidden_dim, self.num_actions)
         return model
 
-    def agent_policy(self, state, epsilon):
+    def agent_policy(self, state):
         q_value = self.model(state)
         action = np.argmax(q_value.detach().numpy())
+        #print(action)
         return action
+
 
     def test(self, num_episodes=500, test_case=None):
         self.model.eval()
@@ -72,7 +74,6 @@ class DQN:
                 obs = env.reset(human_num=5, test_phase=True, counter=episode)
             state = env.convert_coord(obs)
             reward_for_episode = 0
-
             while True:
                 if num_episodes == 1 and test_case != None:
                     env.render()
@@ -97,14 +98,15 @@ class DQN:
 
                     print("Episode: {} done, Reward: {}, Status: {}".format(episode, reward_for_episode, info))
                     break
-            assert (timeout_count + collide_count + goal_count) == num_episodes
-            print("Evaluate on {} test case: Success rate: {}, Collide rate: {}, Timeout rate: {}").format \
-                    (num_episodes, goal_count/num_episodes, collide_count/num_episodes, timeout_count/num_episodes)
-            print("Average reward: {}, Average success nav time: {}".format(np.mean(rewards_list),np.mean(success_times_list)))
+        print(timeout_count + collide_count + goal_count)
+        assert (timeout_count + collide_count + goal_count) == num_episodes
+        print("Evaluate on {} test case: Success rate: {}, Collide rate: {}, Timeout rate: {}".format \
+                (num_episodes, goal_count/(num_episodes), collide_count/(num_episodes), timeout_count/(num_episodes)))
+        print("Average reward: {}, Average success nav time: {}".format(np.mean(rewards_list),np.mean(success_times_list)))
 
 if __name__ == "__main__":
     env = CrowdEnv()
-    num_episodes = 500
-    model_path = "weights/steps_450001.pth"
+    num_episodes = 10
+    model_path = "weights2/ep_3729.pth"
     model = DQN(model_path, env)
-    model.test(num_episodes=num_episodes, test_case=None)
+    model.test(num_episodes=num_episodes, test_case=100)

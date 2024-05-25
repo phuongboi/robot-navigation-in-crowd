@@ -4,6 +4,9 @@ import itertools
 import numpy as np
 from numpy.linalg import norm
 from agent import Human, Robot
+from matplotlib import animation
+import matplotlib.pyplot as plt
+plt.rcParams['animation.ffmpeg_path'] = '/usr/bin/ffmpeg'
 
 class CrowdEnv(object):
     def __init__(self):
@@ -88,8 +91,8 @@ class CrowdEnv(object):
     def reset(self, human_num, test_phase=False, counter=None):
         self.robot = Robot(self.time_step)
         self.human_list = []
-        if test_phase:
-            np.random.sead(counter)
+        # if test_phase:
+        #     np.random.seed(counter)
         self.generate_human_postion(human_num=human_num, rule="circle")
         obs = [self.robot.full_state()] + [human.observable_state() for human in self.human_list]
         assert len(obs) == 6 #debug
@@ -133,11 +136,11 @@ class CrowdEnv(object):
             done = True
             info = "timeout"
         elif d_min < 0:
-            reward = -5
+            reward = -20
             done = True
             info = "collide"
         elif d_min < self.discomfort_dist:
-            reward = round(-0.1 + 0.05*d_min, 4)
+            reward = 5*(d_min - self.discomfort_dist)
             done = False
             info = "close"
         elif reaching_goal:
@@ -178,6 +181,30 @@ class CrowdEnv(object):
         new_state = (torch.cat([dg, rot_expand, vx, vy, v_pref, radius, px_human, py_human, vx_human, vy_human, radius_human, da, radius_sum], dim=1)).unsqueeze(0)
         return new_state# add batch dim
     def render(self):
-        print("show result", len(self.obs))
-        robot_state = obs[0]
-        human_states = obs[1:]
+        # robot_state = self.obs[0]
+        # human_states = self.obs[1:]
+        # cmap = plt.cm.get_cmap('hsv', 10)
+        # robot_color = 'yellow'
+        # goal_color = 'red'
+        # arrow_color = 'red'
+        # arrow_style = patches.ArrowStyle("->", head_length=4, head_width=2)
+        fig, ax = plt.subplots(figsize=(7, 7))
+        ax.set_xlim(-6, 6)
+        ax.set_ylim(-6, 6)
+        def init():
+            for human in self.human_list:
+                human_circle = plt.Circle(human.get_position(), human.radius, fill=False, color='b')
+                ax.add_artist(human_circle)
+            ax.add_artist(plt.Circle(self.robot.get_position(), self.robot.radius, fill=True, color='r'))
+            return ax
+
+        def update(i):
+            for human in self.human_list:
+                human_circle = plt.Circle(human.get_position(), human.radius, fill=False, color='b')
+                ax.add_artist(human_circle)
+            ax.add_artist(plt.Circle(self.robot.get_position(), self.robot.radius, fill=True, color='r'))
+            return ax
+        anim = animation.FuncAnimation(fig, update, init_func = init, \
+        frames = int(self.time_out_duration/self.time_step), blit = True)
+        plt.show()
+        plt.pause(0.0001)

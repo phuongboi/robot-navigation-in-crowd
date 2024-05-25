@@ -139,8 +139,8 @@ class DQN:
                     losses.append(loss.item())
 
                 if steps_done % 10000 == 0:
-                    plot_stats(steps_done, rewards_list, losses, steps_done)
-                    path = os.path.join(self.model_path, f"steps_{steps_done+1}.pth")
+                    plot_stats(steps_done, rewards_list, losses, episode)
+                    path = os.path.join(self.model_path, f"ep_{episode}.pth")
                     torch.save(self.model.state_dict(), path)
                 if len(self.replay_buffer) == self.initial_memory:
                     print("Start learning from buffer")
@@ -159,7 +159,7 @@ def plot_stats(frame_idx, rewards, losses, step):
     plt.title('loss')
     plt.plot(losses)
     #plt.show()
-    plt.savefig('figures/fig_{}.png'.format(step))
+    plt.savefig('figures2/fig_{}.png'.format(step))
 
 
 if __name__ == "__main__":
@@ -175,7 +175,7 @@ if __name__ == "__main__":
     memory_size = 20 * initial_memory
     gamma = 0.99
     num_episodes = 10000
-    model_path = "weights/"
+    model_path = "weights2/"
     print('Start training')
     model = DQN(model_path, env, lr, batch_size, gamma, eps_decay, eps_start, eps_end,initial_memory, memory_size)
     model.train(num_episodes)
