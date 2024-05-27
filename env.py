@@ -30,13 +30,13 @@ class CrowdEnv(object):
         params = self.neighbor_dist, self.max_neighbors, self.time_horizon, self.time_horizon_obst
         self.sim = rvo2.PyRVOSimulator(self.time_step, *params, self.radius, self.max_speed)
         self.vel_samples = self.action_space()
-        self.obs = [] # for render
+        #self.obs = [] # for render
 
     def generate_human_postion(self, human_num, rule):
         if  rule == "square":
-            self.human_list = self.square_rule(human_num)
+            self.square_rule(human_num)
         elif rule == "circle":
-            self.humans_list = self.circle_rule(human_num)
+            self.circle_rule(human_num)
 
     def circle_rule(self, human_num):
         while True:
@@ -48,8 +48,10 @@ class CrowdEnv(object):
             py = self.circle_radius * np.sin(angle) + py_noise
 
             collide = False
+            #print(len([self.robot] + self.human_list))
             for agent in [self.robot] + self.human_list:
                 min_dist = human.radius + agent.radius + self.discomfort_dist
+                #print(min_dist)
                 if norm((px - agent.px, py - agent.py)) < min_dist or \
                     norm((px - agent.gx, py - agent.gy)) < min_dist:
                     collide = True
@@ -60,6 +62,7 @@ class CrowdEnv(object):
 
             if len(self.human_list) >= human_num:
                 break
+
     def square_rule(self, human_hum):
         while True:
             human = Human(self.time_step)
@@ -76,7 +79,7 @@ class CrowdEnv(object):
                 human.set(px, py, -px, -py, 0, 0, 0)
                 self.human_list.append(human)
 
-            if len(self.human_list) >= human:
+            if len(self.human_list) >= human_hum:
                 break
 
     def action_space(self):
@@ -85,7 +88,6 @@ class CrowdEnv(object):
         action_space = []
         for rotation, speed in itertools.product(rotations, speeds):
             action_space.append([speed * np.cos(rotation), speed * np.sin(rotation)])
-
         return action_space
 
     def reset(self, human_num, test_phase=False, counter=None):
@@ -103,7 +105,7 @@ class CrowdEnv(object):
                               human.v_pref, (human.vx, human.py))
         self.sim_time = 0
         self.dg = norm(np.array(self.robot.get_position()) - np.array(self.robot.get_goal_position()))
-        self.obs = obs
+        #self.obs = obs
         return obs
 
     def step(self, action):
@@ -136,11 +138,12 @@ class CrowdEnv(object):
             done = True
             info = "timeout"
         elif d_min < 0:
-            reward = -20
+            reward = -10
             done = True
             info = "collide"
         elif d_min < self.discomfort_dist:
-            reward = 5*(d_min - self.discomfort_dist)
+            reward = 10*(d_min - self.discomfort_dist)
+            #print("penalty", reward)
             done = False
             info = "close"
         elif reaching_goal:
@@ -149,11 +152,12 @@ class CrowdEnv(object):
             info = "Goal, time {}".format(self.sim_time)
         else:
             reward = delta_d
+            #print("delta", delta_d)
             done = False
             info = "Onway"
 
         obs = [self.robot.full_state()] + [human.observable_state() for human in self.human_list]
-        self.obs = obs
+        #self.obs = obs
         return obs, reward, done, info
     def convert_coord(self, obs):
         assert len(obs) == 6

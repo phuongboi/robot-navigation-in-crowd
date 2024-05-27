@@ -66,9 +66,9 @@ class Robot(Agent):
         self.time_step = time_step
         self.v_pref = 1
         self.px = 0
-        self.py = -5
+        self.py = -4
         self.gx = 0
-        self.gy = 5
+        self.gy = 4
         self.vx = 0
         self.vy = 0
         self.theta = 0

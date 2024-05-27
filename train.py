@@ -50,12 +50,14 @@ class DQN:
         self.initial_memory = initial_memory
 
         self.replay_buffer = deque(maxlen=memory_size)
+        self.replay_buffer_b = deque(maxlen=memory_size)
         self.batch_size = batch_size
         self.num_actions = 80
         self.robot_dim = 6
         self.human_dim = 7
         self.lstm_hidden_dim = 48
         self.model = self.make_model()
+        self.first = False # for debug
 
     def make_model(self):
         model = Network(self.robot_dim, self.human_dim, self.lstm_hidden_dim, self.num_actions)
@@ -77,7 +79,8 @@ class DQN:
 
     def sample_from_reply_buffer(self):
         random_sample = random.sample(self.replay_buffer, self.batch_size)
-        return random_sample
+        random_sample_b = random.sample(self.replay_buffer_b, int(self.batch_size/2))
+        return random_sample + random_sample_b
 
     def get_memory(self, random_sample):
         states = torch.cat([i[0] for i in random_sample], dim=0)
@@ -121,6 +124,7 @@ class DQN:
             state = env.convert_coord(obs)
             reward_for_episode = 0
             num_step_per_eps = 0
+            ep_buffer = []
             while True:
                 epsilon = self.eps_end + (self.eps_start - self.eps_end) * np.exp(- steps_done / self.eps_decay)
                 received_action = self.agent_policy(state, epsilon)
@@ -130,11 +134,13 @@ class DQN:
                 next_obs, reward, terminal, info = env.step(vel_action)
                 next_state = env.convert_coord(next_obs)
                 # Store the experience in replay memory
-                self.add_to_replay_buffer(state, received_action, reward, next_state, terminal)
+                #self.add_to_replay_buffer(state, received_action, reward, next_state, terminal)
+                ep_buffer.append((state, received_action, reward, next_state, terminal))
                 # add up rewards
                 reward_for_episode += reward
                 state = next_state
-                if len(self.replay_buffer) > self.initial_memory and steps_done % 4 == 0:
+
+                if max(len(self.replay_buffer), len(self.replay_buffer_b)) >= self.initial_memory and steps_done % 4 == 0:
                     loss = self.train_with_relay_buffer()
                     losses.append(loss.item())
 
@@ -142,12 +148,22 @@ class DQN:
                     plot_stats(steps_done, rewards_list, losses, episode)
                     path = os.path.join(self.model_path, f"ep_{episode}.pth")
                     torch.save(self.model.state_dict(), path)
-                if len(self.replay_buffer) == self.initial_memory:
+
+                if max(len(self.replay_buffer), len(self.replay_buffer_b)) >= self.initial_memory and not self.first:
                     print("Start learning from buffer")
+                    print(len(self.replay_buffer))
+                    print(len(self.replay_buffer_b))
+                    self.first = True
                 if terminal:
                     rewards_list.append(reward_for_episode)
+                    if info == "collide":
+                        self.replay_buffer_b += ep_buffer
+                    else:
+                        self.replay_buffer += ep_buffer
                     print("Episode: {} done, Reward: {}, Status: {}".format(episode, reward_for_episode, info))
                     break
+
+
 
 def plot_stats(frame_idx, rewards, losses, step):
     clear_output(True)
@@ -166,14 +182,14 @@ if __name__ == "__main__":
     env = CrowdEnv()
 
     # setting up params
-    lr = 0.00001
-    batch_size = 128
+    lr = 0.0001
+    batch_size = 64
     eps_decay = 50000
-    eps_start = 1
-    eps_end = 0.01
+    eps_start = 0.5
+    eps_end = 0.1
     initial_memory = 10000
-    memory_size = 20 * initial_memory
-    gamma = 0.99
+    memory_size = 10 * initial_memory
+    gamma = 0.9
     num_episodes = 10000
     model_path = "weights2/"
     print('Start training')

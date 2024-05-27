@@ -56,7 +56,6 @@ class DQN:
     def agent_policy(self, state):
         q_value = self.model(state)
         action = np.argmax(q_value.detach().numpy())
-        #print(action)
         return action
 
 
@@ -67,23 +66,21 @@ class DQN:
         goal_count = 0
         collide_count = 0
         timeout_count = 0
+        steps_done = 0
+        losses = []
+        rewards_list = []
         for episode in range(num_episodes):
-            if num_episodes == 1 and test_case != None:
-                obs = env.reset(human_num=5, test_phase=True, counter=test_case)
-            else:
-                obs = env.reset(human_num=5, test_phase=True, counter=episode)
+            obs = env.reset(human_num=5, test_phase=False, counter=None)
             state = env.convert_coord(obs)
             reward_for_episode = 0
             while True:
-                if num_episodes == 1 and test_case != None:
-                    env.render()
+                #env.render()
                 received_action = self.agent_policy(state)
                 vel_action = env.vel_samples[received_action]
                 next_obs, reward, terminal, info = env.step(vel_action)
                 next_state = env.convert_coord(next_obs)
-                # add up rewards
-                reward_for_episode += reward
                 state = next_state
+                reward_for_episode += reward
                 if terminal:
                     rewards_list.append(reward_for_episode)
                     if info == "timeout":
@@ -107,6 +104,6 @@ class DQN:
 if __name__ == "__main__":
     env = CrowdEnv()
     num_episodes = 10
-    model_path = "weights2/ep_3729.pth"
+    model_path = "weights/steps_640001.pth"
     model = DQN(model_path, env)
     model.test(num_episodes=num_episodes, test_case=100)
