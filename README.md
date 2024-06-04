@@ -1,6 +1,6 @@
 ## Robot navigation in crowd
 - This project focus on make a simple baseline, minimal configuration, easy to train and test and simulation based on recent researches on crowd-aware robot navigation
-- In this project, I use Q-learning with 80 actions (5 level of magnitude and 16 orientation),using (RVO2)[https://github.com/sybrenstuvel/Python-RVO2/] for generate human interaction based on ORCA algorithms. I use LSTM [3] to encode crowd information.
+- In this project, I use Q-learning with 80 actions (5 level of magnitude and 16 orientation),using [RVO2](https://github.com/sybrenstuvel/Python-RVO2/) for generate human interaction based on ORCA algorithms. I use LSTM [3] to encode crowd information.
 #### Result
 *Training*
 ![alt text](https://github.com/phuongboi/robot-navigation-in-crowd/blob/main/figures/fig_660000.png)
